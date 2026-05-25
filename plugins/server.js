@@ -1,11 +1,28 @@
 const { Module } = require("../main");
 const { VERSION, BOT_NAME, SESSION } = require("../config");
 const os = require("os");
+const fs = require("fs");
+const path = require("path");
 const axios = require("axios");
 const dgram = require("dgram");
 const net = require("net");
 
 const startTime = Date.now();
+const SERVERS_FILE = path.join(__dirname, "../data/mc_servers.json");
+
+function loadServers() {
+  try {
+    if (fs.existsSync(SERVERS_FILE)) {
+      return JSON.parse(fs.readFileSync(SERVERS_FILE, "utf8"));
+    }
+  } catch (_) {}
+  return {};
+}
+
+function saveServers(data) {
+  fs.mkdirSync(path.dirname(SERVERS_FILE), { recursive: true });
+  fs.writeFileSync(SERVERS_FILE, JSON.stringify(data, null, 2));
+}
 
 function formatUptime(ms) {
   const totalSec = Math.floor(ms / 1000);
@@ -41,6 +58,10 @@ function isMcshDomain(host) {
 
 function isIpAddress(host) {
   return /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+}
+
+function isAddress(str) {
+  return str.includes(":") || isIpAddress(str);
 }
 
 function pingBedrockDirect(host, port, timeoutMs) {
@@ -90,48 +111,92 @@ function pingBedrockDirect(host, port, timeoutMs) {
   });
 }
 
-function pingJavaDirect(host, port, timeoutMs) {
-  return new Promise((resolve) => {
-    const socket = new net.Socket();
-    let resolved = false;
-    let buffer = Buffer.alloc(0);
-
-    const done = (result) => {
-      if (resolved) return;
-      resolved = true;
-      socket.destroy();
-      resolve(result);
-    };
-
-    socket.setTimeout(timeoutMs || 5000);
-    socket.on("timeout", () => done(null));
-    socket.on("error", () => done(null));
-
-    socket.connect(parseInt(port) || 25565, host, () => {
-      const portBuf = Buffer.alloc(2);
-      portBuf.writeUInt16BE(parseInt(port) || 25565);
-      const handshake = Buffer.concat([
-        Buffer.from([0x00, 0x00]),
-        Buffer.from([host.length]),
-        Buffer.from(host, "utf8"),
-        portBuf,
-        Buffer.from([0x01]),
-      ]);
-      socket.write(Buffer.concat([Buffer.from([handshake.length]), handshake]));
-      socket.write(Buffer.from([0x01, 0x00]));
-    });
-
-    socket.on("data", (chunk) => {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (buffer.length > 5) done({ online: true });
-    });
-  });
-}
-
 async function checkMcStatusApi(host, port, edition) {
   const url = "https://api.mcstatus.io/v2/status/" + edition + "/" + host + (port ? ":" + port : "");
   const { data } = await axios.get(url, { timeout: 8000 });
   return data;
+}
+
+async function checkServer(target, serverName) {
+  const parts = target.split(":");
+  const host = parts[0];
+  const port = parts[1] || null;
+  const edition = detectEdition(port);
+  const mcsh = isMcshDomain(host);
+
+  if (mcsh && !isIpAddress(host)) {
+    return {
+      blocked: true,
+      host,
+      target,
+      serverName,
+    };
+  }
+
+  const t0 = Date.now();
+
+  if (edition === "bedrock" || (!edition && port)) {
+    const result = await pingBedrockDirect(host, port || "19132", 6000);
+    const latency = Date.now() - t0;
+    return {
+      edition: "Bedrock",
+      target,
+      serverName,
+      latency,
+      ...(result || { online: false }),
+    };
+  }
+
+  try {
+    const apiData = await checkMcStatusApi(host, port, "java");
+    const latency = Date.now() - t0;
+    if (apiData && apiData.online) {
+      const pl = apiData.players || {};
+      return {
+        edition: "Java",
+        online: true,
+        target,
+        serverName,
+        latency,
+        motd: apiData.motd ? (apiData.motd.clean || "") : "",
+        version: apiData.version ? (apiData.version.name_clean || apiData.version.name || "") : "",
+        onlinePlayers: pl.online || 0,
+        maxPlayers: pl.max || 0,
+        gameMode: "",
+      };
+    }
+    return { edition: "Java", online: false, target, serverName, latency };
+  } catch (_) {
+    return { edition: "Java", online: false, target, serverName, latency: Date.now() - t0 };
+  }
+}
+
+function buildResultMsg(r) {
+  if (r.blocked) {
+    return (
+      "*━━━「 MINECRAFT SERVER 」━━━*\n\n" +
+      "⚠️ *Domain MCSH terdeteksi*\n\n" +
+      "_Domain_ `" + r.host + "` _diblokir dari IP cloud._\n" +
+      "Gunakan IP dari tab *Network* di panel MCSH.\n\n" +
+      "_Contoh: `.mcstatus Ventela 15.235.217.54:14328`_"
+    );
+  }
+
+  let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
+  if (r.serverName) msg += "🏷️ *Nama:* " + r.serverName + "\n";
+  msg += (r.online ? "🟢" : "🔴") + " *Status:* " + (r.online ? "ONLINE" : "OFFLINE") + "\n";
+  msg += "🌐 *Alamat:* " + r.target + "\n";
+  if (r.edition) msg += "🎯 *Edition:* " + r.edition + "\n";
+  if (r.online) {
+    if (r.motd) msg += "📋 *MOTD:* " + r.motd.replace(/§./g, "") + "\n";
+    if (r.version) msg += "🎮 *Versi:* " + r.version + "\n";
+    msg += "👤 *Pemain:* " + (r.onlinePlayers || 0) + " / " + (r.maxPlayers || 0) + "\n";
+    if (r.gameMode) msg += "🎲 *Mode:* " + r.gameMode + "\n";
+    msg += "⚡ *Latensi:* " + r.latency + " ms\n";
+  } else {
+    msg += "\n_Server tidak merespons. Pastikan server sedang berjalan._";
+  }
+  return msg;
 }
 
 Module(
@@ -171,123 +236,174 @@ Module(
   {
     pattern: "mcstatus ?(.*)",
     fromMe: true,
-    desc: "Cek status server Minecraft (Java & Bedrock)",
-    usage: "<ip:port> atau <domain:port>",
+    desc: "Cek status server Minecraft by nama atau IP",
+    usage: "<nama> | <ip:port> | <nama> <ip:port>",
     use: "utility",
   },
   async (m, match) => {
     const raw = match[1] ? match[1].trim() : "";
-    const defaultServer = process.env.MC_SERVER || "";
-    const defaultName = process.env.MC_SERVER_NAME || "";
+    const servers = loadServers();
 
-    let serverName = null;
-    let target;
-
-    if (raw) {
-      const lastSpace = raw.lastIndexOf(" ");
-      if (lastSpace !== -1 && raw.substring(lastSpace + 1).includes(":")) {
-        serverName = raw.substring(0, lastSpace).trim() || null;
-        target = raw.substring(lastSpace + 1).trim();
-      } else {
-        target = raw;
-      }
-    } else {
-      target = defaultServer;
-      serverName = defaultName || null;
-    }
-
-    if (!target) {
-      const mc1 = process.env.MC_SERVER_1 || "15.235.217.54:14328";
-      const mc2 = process.env.MC_SERVER_2 || "";
+    if (!raw) {
+      const keys = Object.keys(servers);
       let help = "*Cara pakai:*\n";
-      help += "  `.mcstatus <ip:port>`\n";
-      help += "  `.mcstatus <nama server> <ip:port>`\n\n";
-      help += "*Contoh Bedrock:*\n";
-      help += "  `.mcstatus " + mc1 + "`\n";
-      help += "  `.mcstatus VentaWar " + mc1 + "`\n";
-      if (mc2) help += "  `.mcstatus " + mc2 + "`\n";
-      help += "\n*Contoh Java:*\n  `.mcstatus MyServer play.server.com:25565`\n\n";
-      help += "💡 _Untuk MCSH: gunakan IP dari tab Network di panel, bukan domain._";
+      help += "  `.mcstatus <nama>` — cek server tersimpan\n";
+      help += "  `.mcstatus <ip:port>` — cek langsung\n";
+      help += "  `.mcstatus <nama> <ip:port>` — cek dengan label\n\n";
+      if (keys.length > 0) {
+        help += "*Server tersimpan:*\n";
+        keys.forEach((k) => {
+          help += "  • `" + servers[k].name + "` → " + servers[k].address + "\n";
+        });
+        help += "\n";
+      }
+      help += "*Kelola server:*\n";
+      help += "  `.mcsave <nama> <ip:port>` — simpan server\n";
+      help += "  `.mcdelete <nama>` — hapus server\n";
+      help += "  `.mclist` — daftar server tersimpan\n\n";
+      help += "💡 _MCSH: gunakan IP dari tab Network di panel._";
       return await m.sendReply(help);
     }
 
-    const parts = target.split(":");
-    const host = parts[0];
-    const port = parts[1] || null;
-    const edition = detectEdition(port);
-    const mcsh = isMcshDomain(host);
+    const key = raw.toLowerCase().replace(/\s+/g, "");
+    if (servers[key]) {
+      const s = servers[key];
+      await m.sendReply("_Mengecek_ *" + s.name + "* _(" + s.address + ")..._");
+      const result = await checkServer(s.address, s.name);
+      return await m.sendReply(buildResultMsg(result));
+    }
 
-    if (mcsh && !isIpAddress(host)) {
+    const lastSpace = raw.lastIndexOf(" ");
+    let serverName = null;
+    let target;
+
+    if (lastSpace !== -1 && isAddress(raw.substring(lastSpace + 1))) {
+      serverName = raw.substring(0, lastSpace).trim() || null;
+      target = raw.substring(lastSpace + 1).trim();
+    } else if (isAddress(raw)) {
+      target = raw;
+    } else {
+      const fuzzy = Object.keys(servers).find((k) =>
+        k.includes(raw.toLowerCase()) || servers[k].name.toLowerCase().includes(raw.toLowerCase())
+      );
+      if (fuzzy) {
+        const s = servers[fuzzy];
+        await m.sendReply("_Mengecek_ *" + s.name + "* _(" + s.address + ")..._");
+        const result = await checkServer(s.address, s.name);
+        return await m.sendReply(buildResultMsg(result));
+      }
       return await m.sendReply(
-        "⚠️ *Domain MCSH terdeteksi*\n\n" +
-        "_Domain_ `" + host + "` _diblokir untuk status query dari server cloud._\n\n" +
-        "*Gunakan IP langsung dari panel MCSH:*\n" +
-        "1. Login ke panel MCSH\n" +
-        "2. Pilih server → tab *Network*\n" +
-        "3. Salin IP dan port yang tertera\n" +
-        "4. Ketik: `.mcstatus <ip>:<port>`\n\n" +
-        "_Contoh: `.mcstatus 15.235.217.54:14328`_"
+        "❌ Server *" + raw + "* tidak ditemukan.\n\n" +
+        "Gunakan `.mcsave " + raw + " <ip:port>` untuk menyimpannya dulu.\n" +
+        "Atau `.mclist` untuk melihat daftar server tersimpan."
       );
     }
 
-    const label = serverName ? serverName + " (" + target + ")" : target;
-    await m.sendReply("_Mengecek_ `" + label + "` _(" + (edition || "auto-detect") + ")..._");
+    await m.sendReply("_Mengecek_ `" + (serverName ? serverName + " (" + target + ")" : target) + "`..._");
+    const result = await checkServer(target, serverName);
+    return await m.sendReply(buildResultMsg(result));
+  }
+);
 
-    const t0 = Date.now();
-
-    try {
-      if (edition === "bedrock" || (!edition && port)) {
-        const result = await pingBedrockDirect(host, port || "19132", 6000);
-
-        if (result && result.online) {
-          const latency = Date.now() - t0;
-          let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
-          if (serverName) msg += "🏷️ *Nama:* " + serverName + "\n";
-          msg += "🟢 *Status:* ONLINE\n";
-          msg += "🌐 *Alamat:* " + target + "\n";
-          msg += "🎯 *Edition:* Bedrock\n";
-          if (result.motd) msg += "📋 *MOTD:* " + result.motd.replace(/§./g, "") + "\n";
-          if (result.version) msg += "🎮 *Versi:* " + result.version + "\n";
-          msg += "👤 *Pemain:* " + result.onlinePlayers + " / " + result.maxPlayers + "\n";
-          if (result.gameMode) msg += "🎲 *Mode:* " + result.gameMode + "\n";
-          msg += "⚡ *Latensi:* " + latency + " ms\n";
-          return await m.sendReply(msg);
-        }
-
-        let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
-        if (serverName) msg += "🏷️ *Nama:* " + serverName + "\n";
-        msg += "🔴 *Status:* OFFLINE\n";
-        msg += "🌐 *Alamat:* " + target + "\n";
-        msg += "🎯 *Edition:* Bedrock\n\n";
-        msg += "_Server tidak merespons. Pastikan server sedang berjalan._";
-        return await m.sendReply(msg);
-      }
-
-      const apiData = await checkMcStatusApi(host, port, "java");
-      if (apiData && apiData.online) {
-        const latency = Date.now() - t0;
-        const pl = apiData.players || {};
-        let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
-        if (serverName) msg += "🏷️ *Nama:* " + serverName + "\n";
-        msg += "🟢 *Status:* ONLINE\n";
-        msg += "🌐 *Alamat:* " + target + "\n";
-        msg += "🎯 *Edition:* Java\n";
-        if (apiData.motd) msg += "📋 *MOTD:* " + (apiData.motd.clean || "") + "\n";
-        if (apiData.version) msg += "🎮 *Versi:* " + (apiData.version.name_clean || apiData.version.name) + "\n";
-        msg += "👤 *Pemain:* " + (pl.online || 0) + " / " + (pl.max || 0) + "\n";
-        msg += "⚡ *Latensi:* " + latency + " ms\n";
-        return await m.sendReply(msg);
-      }
-
-      let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
-      if (serverName) msg += "🏷️ *Nama:* " + serverName + "\n";
-      msg += "🔴 *Status:* OFFLINE\n";
-      msg += "🌐 *Alamat:* " + target + "\n\n";
-      msg += "_Server tidak merespons._";
-      return await m.sendReply(msg);
-
-    } catch (err) {
-      return await m.sendReply("_Gagal mengecek server._\n_Error: " + err.message + "_");
+Module(
+  {
+    pattern: "mcsave ?(.*)",
+    fromMe: true,
+    desc: "Simpan server Minecraft dengan nama alias",
+    usage: "<nama> <ip:port>",
+    use: "utility",
+  },
+  async (m, match) => {
+    const raw = match[1] ? match[1].trim() : "";
+    if (!raw) {
+      return await m.sendReply("*Cara pakai:* `.mcsave <nama> <ip:port>`\n\n_Contoh:_\n`.mcsave Ventela 15.235.217.54:14328`\n`.mcsave VentelaWar 15.235.217.54:19135`");
     }
+
+    const lastSpace = raw.lastIndexOf(" ");
+    if (lastSpace === -1 || !isAddress(raw.substring(lastSpace + 1))) {
+      return await m.sendReply("❌ Format salah.\n*Cara pakai:* `.mcsave <nama> <ip:port>`\n\n_Contoh:_ `.mcsave Ventela 15.235.217.54:14328`");
+    }
+
+    const name = raw.substring(0, lastSpace).trim();
+    const address = raw.substring(lastSpace + 1).trim();
+    const key = name.toLowerCase().replace(/\s+/g, "");
+
+    const servers = loadServers();
+    const isUpdate = !!servers[key];
+    servers[key] = { name, address };
+    saveServers(servers);
+
+    await m.sendReply(
+      (isUpdate ? "✏️ *Server diperbarui!*" : "✅ *Server disimpan!*") + "\n\n" +
+      "🏷️ *Nama:* " + name + "\n" +
+      "🌐 *Alamat:* " + address + "\n\n" +
+      "_Sekarang cukup ketik_ `.mcstatus " + name + "`"
+    );
+  }
+);
+
+Module(
+  {
+    pattern: "mcdelete ?(.*)",
+    fromMe: true,
+    desc: "Hapus server Minecraft dari daftar",
+    usage: "<nama>",
+    use: "utility",
+  },
+  async (m, match) => {
+    const raw = match[1] ? match[1].trim() : "";
+    if (!raw) {
+      return await m.sendReply("*Cara pakai:* `.mcdelete <nama>`\n\nGunakan `.mclist` untuk melihat daftar server.");
+    }
+
+    const key = raw.toLowerCase().replace(/\s+/g, "");
+    const servers = loadServers();
+
+    if (!servers[key]) {
+      const fuzzy = Object.keys(servers).find((k) =>
+        k.includes(raw.toLowerCase()) || servers[k].name.toLowerCase().includes(raw.toLowerCase())
+      );
+      if (fuzzy) {
+        const name = servers[fuzzy].name;
+        delete servers[fuzzy];
+        saveServers(servers);
+        return await m.sendReply("🗑️ *Server* " + name + " *dihapus.*");
+      }
+      return await m.sendReply("❌ Server *" + raw + "* tidak ditemukan.\n\nGunakan `.mclist` untuk melihat daftar.");
+    }
+
+    const name = servers[key].name;
+    delete servers[key];
+    saveServers(servers);
+    await m.sendReply("🗑️ *Server* " + name + " *berhasil dihapus.*");
+  }
+);
+
+Module(
+  {
+    pattern: "mclist",
+    fromMe: true,
+    desc: "Tampilkan daftar server Minecraft tersimpan",
+    use: "utility",
+  },
+  async (m) => {
+    const servers = loadServers();
+    const keys = Object.keys(servers);
+
+    if (keys.length === 0) {
+      return await m.sendReply(
+        "📋 *Daftar server kosong.*\n\n" +
+        "Tambahkan dengan:\n`.mcsave <nama> <ip:port>`\n\n" +
+        "_Contoh:_ `.mcsave Ventela 15.235.217.54:14328`"
+      );
+    }
+
+    let msg = "*━━━「 SERVER MINECRAFT 」━━━*\n\n";
+    keys.forEach((k, i) => {
+      msg += (i + 1) + ". *" + servers[k].name + "*\n";
+      msg += "   `" + servers[k].address + "`\n";
+    });
+    msg += "\n_Ketik_ `.mcstatus <nama>` _untuk cek status._";
+    await m.sendReply(msg);
   }
 );
