@@ -41,9 +41,9 @@ run = ["node", "index.js"]
 [userenv]
 
 [userenv.shared]
-SESSION = "RGNK~dwlsjQaJ"
+SESSION = "RGNK~Lw5nKmDz"
 BOT_NAME = "Androbot"
-HANDLERS = ".!"
+HANDLERS = "."
 SUDO = "6283188144400, 6285173260140"
 LANGUAGE = "id"
 TZ = "Asia/Jakarta"
