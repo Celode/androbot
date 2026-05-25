@@ -32,6 +32,10 @@ function detectEdition(port) {
   return BEDROCK_PORTS.includes(String(port)) ? "bedrock" : "java";
 }
 
+function isMcshDomain(host) {
+  return typeof host === "string" && host.toLowerCase().includes("mcsh.com");
+}
+
 function pingBedrockDirect(host, port, timeoutMs) {
   return new Promise((resolve) => {
     const socket = dgram.createSocket("udp4");
@@ -127,9 +131,7 @@ function pingJavaDirect(host, port, timeoutMs) {
 
     socket.on("data", (chunk) => {
       buffer = Buffer.concat([buffer, chunk]);
-      if (buffer.length > 5) {
-        done({ online: true });
-      }
+      if (buffer.length > 5) done({ online: true });
     });
   });
 }
@@ -177,8 +179,8 @@ Module(
   {
     pattern: "mcstatus ?(.*)",
     fromMe: true,
-    desc: "Cek status server Minecraft langsung (Java & Bedrock)",
-    usage: "<ip:port>",
+    desc: "Cek status server Minecraft (Java & Bedrock)",
+    usage: "<domain:port> atau <ip:port>",
     use: "utility",
   },
   async (m, match) => {
@@ -189,10 +191,9 @@ Module(
     if (!target) {
       return await m.sendReply(
         "*Cara pakai:* .mcstatus <ip:port>\n\n" +
-        "*Contoh Bedrock:*\n  .mcstatus 103.x.x.x:19132\n\n" +
-        "*Contoh Java:*\n  .mcstatus 103.x.x.x:25565\n\n" +
-        "⚠️ _Gunakan IP numerik, bukan domain, jika domain tidak bisa diakses dari luar Indonesia._\n\n" +
-        "_Cek IP server kamu di panel MCSH._"
+        "*Contoh Bedrock (MCSH):*\n  .mcstatus ventela.mcsh.com:19132\n  .mcstatus ventelawar.mcsh.com:19132\n\n" +
+        "*Contoh Java:*\n  .mcstatus play.server.com:25565\n\n" +
+        "_Port 19132/19133 otomatis terdeteksi sebagai Bedrock._"
       );
     }
 
@@ -200,13 +201,14 @@ Module(
     const host = parts[0];
     const port = parts[1] || null;
     const edition = detectEdition(port);
+    const mcsh = isMcshDomain(host);
 
     await m.sendReply("_Mengecek_ `" + target + "` _(" + (edition || "auto") + ")..._");
 
     const t0 = Date.now();
 
     try {
-      if (edition === "bedrock" || (!edition && port)) {
+      if (edition === "bedrock" || (port && !edition)) {
         const result = await pingBedrockDirect(host, port || "19132", 6000);
 
         if (result && result.online) {
@@ -223,43 +225,23 @@ Module(
           return await m.sendReply(msg);
         }
 
-        if (!edition) {
-          const javaResult = await pingJavaDirect(host, port || "25565", 5000);
-          if (javaResult && javaResult.online) {
-            try {
-              const apiData = await checkMcStatusApi(host, port, "java");
-              if (apiData && apiData.online) {
-                const latency = Date.now() - t0;
-                let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
-                msg += "🟢 *Status:* ONLINE\n";
-                msg += "🌐 *Server:* " + target + "\n";
-                msg += "🎯 *Edition:* Java\n";
-                if (apiData.motd) msg += "📋 *MOTD:* " + (apiData.motd.clean || "") + "\n";
-                if (apiData.version) msg += "🎮 *Versi:* " + (apiData.version.name_clean || apiData.version.name) + "\n";
-                const pl = apiData.players || {};
-                msg += "👤 *Pemain:* " + (pl.online || 0) + " / " + (pl.max || 0) + "\n";
-                msg += "⚡ *Latensi:* " + latency + " ms\n";
-                return await m.sendReply(msg);
-              }
-            } catch (_) {}
-            const latency = Date.now() - t0;
-            let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
-            msg += "🟢 *Status:* ONLINE _(koneksi berhasil)_\n";
-            msg += "🌐 *Server:* " + target + "\n";
-            msg += "🎯 *Edition:* Java\n";
-            msg += "⚡ *Latensi:* " + latency + " ms\n";
-            return await m.sendReply(msg);
-          }
+        let offlineMsg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
+        offlineMsg += "🔴 *Status:* Tidak merespons\n";
+        offlineMsg += "🌐 *Server:* " + target + "\n";
+        offlineMsg += "🎯 *Edition:* Bedrock\n\n";
+
+        if (mcsh) {
+          offlineMsg += "⚠️ *Catatan MCSH:*\n";
+          offlineMsg += "_MCSH memblokir koneksi dari IP cloud/VPS (termasuk Replit) sebagai proteksi anti-DDoS._\n\n";
+          offlineMsg += "_Ini bukan berarti server offline — server kamu mungkin tetap berjalan normal._\n\n";
+          offlineMsg += "💡 *Cek status server di:*\n";
+          offlineMsg += "• Panel MCSH: https://mcserverhost.com/clientarea\n";
+          offlineMsg += "• Atau coba sambung langsung dari game Minecraft-mu.";
+        } else {
+          offlineMsg += "_Server tidak merespons. Pastikan server sedang berjalan dan port benar._";
         }
 
-        return await m.sendReply(
-          "*━━━「 MINECRAFT SERVER 」━━━*\n\n" +
-          "🔴 *Status:* OFFLINE\n" +
-          "🌐 *Server:* " + target + "\n" +
-          "🎯 *Edition:* " + (edition || "Bedrock/Java") + "\n\n" +
-          "_Server tidak merespons. Pastikan IP dan port benar._\n\n" +
-          "💡 _Tip: Jika domain tidak bisa diakses, coba gunakan IP numerik dari panel MCSH._"
-        );
+        return await m.sendReply(offlineMsg);
       }
 
       const apiData = await checkMcStatusApi(host, port, "java");
@@ -279,9 +261,9 @@ Module(
 
       return await m.sendReply(
         "*━━━「 MINECRAFT SERVER 」━━━*\n\n" +
-        "🔴 *Status:* OFFLINE\n" +
+        "🔴 *Status:* Tidak merespons\n" +
         "🌐 *Server:* " + target + "\n\n" +
-        "_Server tidak merespons._"
+        "_Server tidak merespons. Pastikan server sedang berjalan._"
       );
 
     } catch (err) {
