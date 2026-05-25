@@ -26,10 +26,13 @@ function bytesToMB(bytes) {
 }
 
 const BEDROCK_PORTS = ["19132", "19133"];
+const JAVA_PORTS = ["25565", "25566"];
 
 function detectEdition(port) {
   if (!port) return null;
-  return BEDROCK_PORTS.includes(String(port)) ? "bedrock" : "java";
+  if (BEDROCK_PORTS.includes(String(port))) return "bedrock";
+  if (JAVA_PORTS.includes(String(port))) return "java";
+  return null;
 }
 
 function isMcshDomain(host) {
