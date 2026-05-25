@@ -67,6 +67,7 @@ async function main() {
   console.log("- Bot initialization complete.");
   logger.info("Bot initialization complete");
 
+  botManager.startWatchdog();
   initializeKickBot();
 
   const startServer = () => {
