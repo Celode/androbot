@@ -42,7 +42,7 @@ async function loadBaileys() {
       return baileys;
     } catch (requireErr) {
       throw new Error(
-        `Failed to load baileys: ${err.message}. Fallback error: ${requireErr.message}`
+        "Failed to load baileys: " + err.message + ". Fallback error: " + requireErr.message
       );
     }
   }
@@ -96,25 +96,34 @@ async function genThumb(url) {
 let activeKickBotTasks = [];
 let isKickBotInitialized = false;
 
+const PING_INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "480000", 10);
+
 function detectHostnames() {
   const hostnames = [];
-  if (process.env.KOYEB_PUBLIC_DOMAIN?.trim()) {
-    hostnames.push(`https://${process.env.KOYEB_PUBLIC_DOMAIN.trim()}`);
+  if (process.env.KOYEB_PUBLIC_DOMAIN && process.env.KOYEB_PUBLIC_DOMAIN.trim()) {
+    hostnames.push("https://" + process.env.KOYEB_PUBLIC_DOMAIN.trim());
   }
-  if (process.env.RENDER_EXTERNAL_HOSTNAME?.trim()) {
-    hostnames.push(`https://${process.env.RENDER_EXTERNAL_HOSTNAME.trim()}`);
+  if (process.env.RENDER_EXTERNAL_HOSTNAME && process.env.RENDER_EXTERNAL_HOSTNAME.trim()) {
+    hostnames.push("https://" + process.env.RENDER_EXTERNAL_HOSTNAME.trim());
   }
-  if (process.env.RAILWAY_PUBLIC_DOMAIN?.trim()) {
-    hostnames.push(`https://${process.env.RAILWAY_PUBLIC_DOMAIN.trim()}`);
+  if (process.env.RAILWAY_PUBLIC_DOMAIN && process.env.RAILWAY_PUBLIC_DOMAIN.trim()) {
+    hostnames.push("https://" + process.env.RAILWAY_PUBLIC_DOMAIN.trim());
+  }
+  if (process.env.REPLIT_DEV_DOMAIN && process.env.REPLIT_DEV_DOMAIN.trim()) {
+    hostnames.push("https://" + process.env.REPLIT_DEV_DOMAIN.trim());
+  }
+  if (process.env.SELF_PING_URL && process.env.SELF_PING_URL.trim()) {
+    hostnames.push(process.env.SELF_PING_URL.trim());
   }
   return hostnames;
 }
 
 async function pingHostname(url) {
+  const pingUrl = url.endsWith("/health") ? url : url + "/health";
   try {
-    const response = await fetch(url, {
+    const response = await fetch(pingUrl, {
       signal: AbortSignal.timeout(8000),
-      headers: { "User-Agent": "Raganork-KickBot/1.0" },
+      headers: { "User-Agent": "Raganork-SelfPing/1.0" },
     });
     if (response.ok) {
       return true;
@@ -129,14 +138,18 @@ async function initializeKickBot() {
   if (hostnames.length === 0) return;
 
   isKickBotInitialized = true;
-  console.log(`[Kick-Bot] Active for: ${hostnames[0]}`);
+  const intervalSec = PING_INTERVAL_MS / 1000;
+  console.log("[Self-Ping] Active — pinging every " + intervalSec + "s for: " + hostnames.join(", "));
 
   await Promise.allSettled(hostnames.map(pingHostname));
 
-  const intervalId = setInterval(
-    () => Promise.allSettled(hostnames.map(pingHostname)),
-    8 * 60 * 1000
-  );
+  const intervalId = setInterval(async () => {
+    const results = await Promise.allSettled(hostnames.map(pingHostname));
+    const failed = results.filter((r) => r.status === "rejected" || r.value === false);
+    if (failed.length > 0) {
+      console.warn("[Self-Ping] Warning: " + failed.length + "/" + hostnames.length + " ping(s) failed");
+    }
+  }, PING_INTERVAL_MS);
 
   activeKickBotTasks.push(intervalId);
 }
