@@ -176,18 +176,37 @@ Module(
     use: "utility",
   },
   async (m, match) => {
-    const input = match[1] ? match[1].trim() : "";
+    const raw = match[1] ? match[1].trim() : "";
     const defaultServer = process.env.MC_SERVER || "";
-    const target = input || defaultServer;
+    const defaultName = process.env.MC_SERVER_NAME || "";
+
+    let serverName = null;
+    let target;
+
+    if (raw) {
+      const lastSpace = raw.lastIndexOf(" ");
+      if (lastSpace !== -1 && raw.substring(lastSpace + 1).includes(":")) {
+        serverName = raw.substring(0, lastSpace).trim() || null;
+        target = raw.substring(lastSpace + 1).trim();
+      } else {
+        target = raw;
+      }
+    } else {
+      target = defaultServer;
+      serverName = defaultName || null;
+    }
 
     if (!target) {
       const mc1 = process.env.MC_SERVER_1 || "15.235.217.54:14328";
       const mc2 = process.env.MC_SERVER_2 || "";
-      let help = "*Cara pakai:* .mcstatus <ip:port>\n\n";
-      help += "*Contoh Bedrock:*\n  .mcstatus " + mc1 + "\n";
-      if (mc2) help += "  .mcstatus " + mc2 + "\n";
-      help += "\n*Contoh Java:*\n  .mcstatus play.server.com:25565\n\n";
-      help += "_Port 19132/19133 = Bedrock, lainnya = Java._\n\n";
+      let help = "*Cara pakai:*\n";
+      help += "  `.mcstatus <ip:port>`\n";
+      help += "  `.mcstatus <nama server> <ip:port>`\n\n";
+      help += "*Contoh Bedrock:*\n";
+      help += "  `.mcstatus " + mc1 + "`\n";
+      help += "  `.mcstatus VentaWar " + mc1 + "`\n";
+      if (mc2) help += "  `.mcstatus " + mc2 + "`\n";
+      help += "\n*Contoh Java:*\n  `.mcstatus MyServer play.server.com:25565`\n\n";
       help += "💡 _Untuk MCSH: gunakan IP dari tab Network di panel, bukan domain._";
       return await m.sendReply(help);
     }
@@ -211,7 +230,8 @@ Module(
       );
     }
 
-    await m.sendReply("_Mengecek_ `" + target + "` _(" + (edition || "auto-detect") + ")..._");
+    const label = serverName ? serverName + " (" + target + ")" : target;
+    await m.sendReply("_Mengecek_ `" + label + "` _(" + (edition || "auto-detect") + ")..._");
 
     const t0 = Date.now();
 
@@ -222,8 +242,9 @@ Module(
         if (result && result.online) {
           const latency = Date.now() - t0;
           let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
+          if (serverName) msg += "🏷️ *Nama:* " + serverName + "\n";
           msg += "🟢 *Status:* ONLINE\n";
-          msg += "🌐 *Server:* " + target + "\n";
+          msg += "🌐 *Alamat:* " + target + "\n";
           msg += "🎯 *Edition:* Bedrock\n";
           if (result.motd) msg += "📋 *MOTD:* " + result.motd.replace(/§./g, "") + "\n";
           if (result.version) msg += "🎮 *Versi:* " + result.version + "\n";
@@ -233,13 +254,13 @@ Module(
           return await m.sendReply(msg);
         }
 
-        return await m.sendReply(
-          "*━━━「 MINECRAFT SERVER 」━━━*\n\n" +
-          "🔴 *Status:* OFFLINE\n" +
-          "🌐 *Server:* " + target + "\n" +
-          "🎯 *Edition:* Bedrock\n\n" +
-          "_Server tidak merespons. Pastikan server sedang berjalan._"
-        );
+        let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
+        if (serverName) msg += "🏷️ *Nama:* " + serverName + "\n";
+        msg += "🔴 *Status:* OFFLINE\n";
+        msg += "🌐 *Alamat:* " + target + "\n";
+        msg += "🎯 *Edition:* Bedrock\n\n";
+        msg += "_Server tidak merespons. Pastikan server sedang berjalan._";
+        return await m.sendReply(msg);
       }
 
       const apiData = await checkMcStatusApi(host, port, "java");
@@ -247,8 +268,9 @@ Module(
         const latency = Date.now() - t0;
         const pl = apiData.players || {};
         let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
+        if (serverName) msg += "🏷️ *Nama:* " + serverName + "\n";
         msg += "🟢 *Status:* ONLINE\n";
-        msg += "🌐 *Server:* " + target + "\n";
+        msg += "🌐 *Alamat:* " + target + "\n";
         msg += "🎯 *Edition:* Java\n";
         if (apiData.motd) msg += "📋 *MOTD:* " + (apiData.motd.clean || "") + "\n";
         if (apiData.version) msg += "🎮 *Versi:* " + (apiData.version.name_clean || apiData.version.name) + "\n";
@@ -257,12 +279,12 @@ Module(
         return await m.sendReply(msg);
       }
 
-      return await m.sendReply(
-        "*━━━「 MINECRAFT SERVER 」━━━*\n\n" +
-        "🔴 *Status:* OFFLINE\n" +
-        "🌐 *Server:* " + target + "\n\n" +
-        "_Server tidak merespons._"
-      );
+      let msg = "*━━━「 MINECRAFT SERVER 」━━━*\n\n";
+      if (serverName) msg += "🏷️ *Nama:* " + serverName + "\n";
+      msg += "🔴 *Status:* OFFLINE\n";
+      msg += "🌐 *Alamat:* " + target + "\n\n";
+      msg += "_Server tidak merespons._";
+      return await m.sendReply(msg);
 
     } catch (err) {
       return await m.sendReply("_Gagal mengecek server._\n_Error: " + err.message + "_");
