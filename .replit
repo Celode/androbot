@@ -37,3 +37,13 @@ externalPort = 3000
 [deployment]
 deploymentTarget = "vm"
 run = ["node", "index.js"]
+
+[userenv]
+
+[userenv.shared]
+SESSION = "RGNK~dwlsjQaJ"
+BOT_NAME = "Androbot"
+HANDLERS = "."
+SUDO = "6283188144400, 6285173260140"
+LANGUAGE = "id"
+TZ = "Asia/Jakarta"
