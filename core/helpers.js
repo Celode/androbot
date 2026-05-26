@@ -96,7 +96,7 @@ async function genThumb(url) {
 let activeKickBotTasks = [];
 let isKickBotInitialized = false;
 
-const PING_INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "480000", 10);
+const PING_INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "240000", 10);
 
 function detectHostnames() {
   const hostnames = [];
