@@ -1,5 +1,6 @@
 const { Module } = require("../main");
-const { VERSION, BOT_NAME, SESSION } = require("../config");
+const { VERSION, BOT_NAME, SESSION, MODE } = require("../config");
+const isPrivateMode = MODE === "private";
 const os = require("os");
 const fs = require("fs");
 const path = require("path");
@@ -202,7 +203,7 @@ function buildResultMsg(r) {
 Module(
   {
     pattern: "status",
-    fromMe: true,
+    fromMe: isPrivateMode,
     desc: "Tampilkan status bot, uptime, dan info sistem",
     use: "system",
   },
@@ -235,7 +236,7 @@ Module(
 Module(
   {
     pattern: "mcstatus ?(.*)",
-    fromMe: true,
+    fromMe: isPrivateMode,
     desc: "Cek status server Minecraft by nama atau IP",
     usage: "<nama> | <ip:port> | <nama> <ip:port>",
     use: "utility",
@@ -308,7 +309,7 @@ Module(
 Module(
   {
     pattern: "mcsave ?(.*)",
-    fromMe: true,
+    fromMe: isPrivateMode,
     desc: "Simpan server Minecraft dengan nama alias",
     usage: "<nama> <ip:port>",
     use: "utility",
@@ -345,7 +346,7 @@ Module(
 Module(
   {
     pattern: "mcdelete ?(.*)",
-    fromMe: true,
+    fromMe: isPrivateMode,
     desc: "Hapus server Minecraft dari daftar",
     usage: "<nama>",
     use: "utility",
@@ -382,7 +383,7 @@ Module(
 Module(
   {
     pattern: "mclist",
-    fromMe: true,
+    fromMe: isPrivateMode,
     desc: "Tampilkan daftar server Minecraft tersimpan",
     use: "utility",
   },

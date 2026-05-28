@@ -50,7 +50,7 @@
 ### Langkah 0 — Persiapan
 
 - Install **Termux** dari [F-Droid](https://f-droid.org/packages/com.termux/) *(bukan Play Store)*
-- Dapatkan **Session String** di 👉 [https://raganork.site](https://raganork.site)
+- Session bersifat **opsional** (bot bisa login via QR/pairing langsung)
 - Jalankan sekali: `termux-setup-storage`
 
 ---
@@ -67,7 +67,7 @@ Script **`deploy-androbot.sh`** akan otomatis mengurus semuanya:
 ```
 ✓  Update & install dependency (git, nodejs-lts, ffmpeg, yarn, pm2)
 ✓  Clone repo ke ~/androbot
-✓  Tanya Session String, nama bot, nomor SUDO, timezone
+✓  Tanya Session (opsional), nama bot, nomor SUDO, timezone
 ✓  Buat file .env otomatis
 ✓  Jalankan bot via PM2
 ```
@@ -143,7 +143,8 @@ Buat file `.env` di root folder dengan isi berikut:
 
 ```env
 # ── Sesi ──────────────────────────────
-SESSION=RGNK~xxxxxxxxxxxxxx
+SESSION=local
+USE_LOCAL_AUTH=true
 
 # ── Bot ───────────────────────────────
 BOT_NAME=AndroBot
@@ -160,7 +161,8 @@ TZ=Asia/Jakarta
 
 | Variable | Keterangan |
 |---|---|
-| `SESSION` | Session string dari raganork.site |
+| `SESSION` | ID sesi lokal atau session string lama (`RGNK~...`) |
+| `USE_LOCAL_AUTH` | `true` untuk auto mode QR/pairing tanpa generator web |
 | `BOT_NAME` | Nama bot yang ditampilkan |
 | `HANDLERS` | Prefix perintah bot |
 | `SUDO` | Nomor admin tanpa `+` (contoh: `628123456789`) |
@@ -224,7 +226,7 @@ androbot/
 
 - 💬 Telegram: [@raganork_in](https://t.me/raganork_in)
 - 🌐 Website: [raganork.live](https://raganork.live)
-- 🔑 Session Generator: [raganork.site](https://raganork.site)
+- 🔑 Session Generator: tidak wajib (disarankan local auth via QR/pairing)
 
 ---
 

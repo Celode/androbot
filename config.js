@@ -164,10 +164,37 @@ const sequelize = (() => {
 })();
 
 const SESSION_STRING = process.env.SESSION || process.env.SESSION_ID;
+const USE_LOCAL_AUTH = convertToBool(process.env.USE_LOCAL_AUTH || "", "true", "on");
+const DEFAULT_LOCAL_SESSION_ID = process.env.DEFAULT_LOCAL_SESSION_ID || "local";
 
-const SESSION = SESSION_STRING
-  ? SESSION_STRING.split(",").map((s) => s.split("~")[1].trim())
-  : [];
+function normalizeSessionToken(sessionToken) {
+  const raw = String(sessionToken || "").trim();
+  if (!raw) return null;
+
+  // Backward compatibility for legacy tokens like "RGNK~xxxx"
+  if (raw.includes("~")) {
+    const [, parsed] = raw.split("~");
+    return parsed ? parsed.trim() : null;
+  }
+
+  // Also support direct local/plain session IDs (e.g. "local")
+  return raw;
+}
+
+const SESSION = (() => {
+  if (SESSION_STRING) {
+    return SESSION_STRING.split(",")
+      .map((token) => normalizeSessionToken(token))
+      .filter(Boolean);
+  }
+
+  // Allows first-time QR/pairing login without web session generator.
+  if (USE_LOCAL_AUTH) {
+    return [DEFAULT_LOCAL_SESSION_ID];
+  }
+
+  return [];
+})();
 
 const settingsMenu = [
   { title: "PM antispam block", env_var: "PM_ANTISPAM" },
@@ -269,6 +296,8 @@ const baseConfig = {
   sequelize,
   DATABASE_URL,
   DEBUG,
+  USE_LOCAL_AUTH,
+  DEFAULT_LOCAL_SESSION_ID,
 };
 
 const dynamicValues = new Map();

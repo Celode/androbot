@@ -1,10 +1,14 @@
 const { WhatsAppBot } = require("./bot");
-const { logger, SESSION } = require('../config');
+const { NativeWhatsAppBot } = require("./native-bot");
+const { logger, SESSION, USE_LOCAL_AUTH } = require('../config');
 const { sequelize } = require("./database");
 const { CustomAuthState } = require("./auth");
 const { flushQueueOnShutdown, stopFlushTimer } = require("./store");
 
-const WATCHDOG_INTERVAL_MS = parseInt(process.env.WATCHDOG_INTERVAL_MS || "300000", 10);
+const WATCHDOG_INTERVAL_MS = parseInt(
+    process.env.WATCHDOG_INTERVAL_MS || (USE_LOCAL_AUTH ? "15000" : "300000"),
+    10
+);
 
 class BotManager {
     constructor() {
@@ -16,11 +20,13 @@ class BotManager {
 
     async initializeBots() {
         logger.info({ sessions: SESSION }, `Initializing all configured bots.`);
-        await CustomAuthState.deleteGarbageSessions(SESSION);        
+        if (!USE_LOCAL_AUTH) {
+            await CustomAuthState.deleteGarbageSessions(SESSION);
+        }
         for (const sessionId of SESSION) {
             try {
                 logger.info({ session: sessionId }, `Attempting to initialize bot for session.`);
-                const bot = new WhatsAppBot(sessionId);
+                const bot = this.createBot(sessionId);
                 await bot.initialize(); 
                 if (bot.sock) { 
                     this.bots.set(sessionId, bot);
@@ -50,7 +56,7 @@ class BotManager {
         }
 
         try {
-            const bot = new WhatsAppBot(sessionId);
+            const bot = this.createBot(sessionId);
             await bot.initialize();
             if (bot.sock) {
                 this.bots.set(sessionId, bot);
@@ -96,6 +102,10 @@ class BotManager {
         return this.bots.get(sessionId);
     }
 
+    createBot(sessionId) {
+        return USE_LOCAL_AUTH ? new NativeWhatsAppBot(sessionId) : new WhatsAppBot(sessionId);
+    }
+
     async sendMessage(sessionId, jid, message) {
         const bot = this.getBot(sessionId);
         if (!bot) {
@@ -117,12 +127,14 @@ class BotManager {
             logger.error({ err }, "Failed to flush message queue during shutdown");
         }
 
-        try {
-            logger.info("Saving all session data before shutdown...");
-            await CustomAuthState.saveAllSessions();
-            logger.info("All session data saved successfully");
-        } catch (error) {
-            logger.error({ err: error }, "Error saving sessions during shutdown");
+        if (!USE_LOCAL_AUTH) {
+            try {
+                logger.info("Saving all session data before shutdown...");
+                await CustomAuthState.saveAllSessions();
+                logger.info("All session data saved successfully");
+            } catch (error) {
+                logger.error({ err: error }, "Error saving sessions during shutdown");
+            }
         }
 
         for (const [sessionId, bot] of this.bots.entries()) {
@@ -135,11 +147,13 @@ class BotManager {
         }
         this.bots.clear(); 
 
-        try {
-            CustomAuthState.stopPeriodicSave();
-            logger.info('Auth periodic save timer stopped');
-        } catch (error) {
-            logger.error({ err: error }, 'Error stopping periodic save timer');
+        if (!USE_LOCAL_AUTH) {
+            try {
+                CustomAuthState.stopPeriodicSave();
+                logger.info('Auth periodic save timer stopped');
+            } catch (error) {
+                logger.error({ err: error }, 'Error stopping periodic save timer');
+            }
         }
 
         try {

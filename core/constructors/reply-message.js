@@ -50,9 +50,9 @@ class ReplyMessage extends Base {
       const quotedMsg = data.quotedMessage;
       this.fromMe =
         (data.participant?.includes("lid") &&
-          data.participant?.startsWith(this.client.user.lid.split(":")[0])) ||
+          data.participant?.startsWith(this.client.user?.lid?.split(":")[0])) ||
         (data.participant?.includes("s.whatsapp.net") &&
-          data.participant?.startsWith(this.client.user.id.split(":")[0]));
+          data.participant?.startsWith(this.client.user?.id?.split(":")[0]));
       if (quotedMsg.imageMessage) {
         this.message = quotedMsg.imageMessage.caption || "";
         this.caption = quotedMsg.imageMessage.caption || "";

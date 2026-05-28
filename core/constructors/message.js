@@ -50,6 +50,7 @@ class Message extends Base {
     }
 
     const botNumeric = this.client.user?.lid?.split(":")[0] + "@lid";
+    const botId = this.client.user?.lid?.split(":")[0];
     const senderNumeric = this.sender?.split("@")[0];
 
     // check if sender is sudo using SUDO_MAP
@@ -96,8 +97,7 @@ class Message extends Base {
         key: {
           remoteJid: contextInfo.remoteJid,
           fromMe:
-            quotedParticipantJid?.split("@")[0] ===
-            this.client.user?.id?.split(":")[0],
+            quotedParticipantJid?.split("@")[0] === botId,
           id: this.reply_message.id,
           participant: quotedParticipantJid,
         },

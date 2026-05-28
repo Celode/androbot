@@ -73,11 +73,14 @@ Module(
       ? await isAdmin(message, message.sender)
       : false;
     if (message.fromOwner || adminAccesValidated) {
-      var users = (
-        await message.client.groupMetadata(message.jid)
-      ).participants.map((e) => e.id);
-      if (message.mention?.[0]) users = message.mention;
-      if (message.reply_message && !message.mention.length)
+      try {
+        const metadata = await message.client.groupMetadata(message.jid);
+        if (!metadata?.participants?.length) {
+          return await message.sendReply("_Failed to get group participants!_");
+        }
+        var users = metadata.participants.map((e) => e.id || e.jid).filter(Boolean);
+        if (message.mention?.[0]) users = message.mention;
+        if (message.reply_message && !message.mention.length)
         users = [message.reply_message?.jid];
 
       let userStats = await fetchFromStore(message.jid);
@@ -129,7 +132,13 @@ Module(
         }*_\n_Name: *${name}*_\n_Total msgs: *${count}*_\n_Last msg: *${lastMsg}*_${types_msg}\n\n`;
       }
 
-      return await message.sendReply(final_msg);
+        return await message.sendReply(final_msg);
+      } catch (error) {
+        console.error("Error in msgs command:", error);
+        return await message.sendReply(
+          "_Failed to fetch message stats. Please try again._"
+        );
+      }
     }
   }
 );

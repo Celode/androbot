@@ -1,7 +1,11 @@
-const path = require("path");
 const fs = require("fs");
+const dotenv = require("dotenv");
+
 if (fs.existsSync("./config.env")) {
-  require("dotenv").config({ path: "./config.env" });
+  dotenv.config({ path: "./config.env" });
+} else if (fs.existsSync("./.env")) {
+  // Keep compatibility with common Node.js convention.
+  dotenv.config({ path: "./.env" });
 }
 
 const { suppressLibsignalLogs } = require("./core/helpers");
@@ -28,7 +32,7 @@ async function main() {
   logger.info(`Configured sessions: ${SESSION.join(", ")}`);
   if (SESSION.length === 0) {
     const warnMsg =
-      "⚠️ No sessions configured. Please set SESSION environment variable.";
+      "⚠️ No sessions configured. Set SESSION or enable USE_LOCAL_AUTH=true.";
     console.warn(warnMsg);
     logger.warn(warnMsg);
     return;

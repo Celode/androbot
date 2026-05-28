@@ -32,10 +32,10 @@ function buildHandlerPrefix(rawHandlers, allowNoPrefix) {
   return allowNoPrefix ? `${group}?` : group;
 }
 
-if (config.HANDLERS === "false") {
+if (config.HANDLERS === "false" || !config.HANDLERS) {
   commandPrefix = "^";
 } else {
-  commandPrefix = config.HANDLERS;
+  commandPrefix = config.HANDLERS || ".,";
 }
 
 handlerPrefix = buildHandlerPrefix(commandPrefix, Boolean(config.MULTI_HANDLERS));
