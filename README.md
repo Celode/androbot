@@ -22,7 +22,8 @@ Copy dan jalankan perintah berikut di Termux:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/celode/androbot/main/deploy-androbot.sh -o deploy-androbot.sh
-bash deploy-androbot.sh
+chmod +x deploy-androbot.sh
+./deploy-androbot.sh
 ```
 
 Atau jika kamu sudah punya file-nya secara lokal:
