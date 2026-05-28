@@ -167,14 +167,13 @@ TZ=Asia/Jakarta
 
 | Variable | Keterangan |
 |---|---|
-| `SESSION` | ID sesi lokal atau session string lama (`RGNK~...`) |
-| `USE_LOCAL_AUTH` | `true` untuk auto mode QR/pairing tanpa generator web |
-| `BOT_NAME` | Nama bot yang ditampilkan |
-| `HANDLERS` | Prefix perintah bot |
-| `SUDO` | Nomor admin tanpa `+` (contoh: `628123456789`) |
-| `DATABASE_URL` | PostgreSQL — wajib untuk Render/Railway/Koyeb, opsional untuk Termux |
-| `TZ` | Timezone, contoh: `Asia/Jakarta` |
-
+| SESSION=local | 
+| USE_LOCAL_AUTH=true | 
+| USE_SERVER=false | 
+| MODE=public |
+| HANDLERS=. |
+| # opsional untuk pairing code: |
+| # PAIRING_NUMBER=628xxxxxxxxxx |
 ---
 
 ## ✦ Perintah PM2
