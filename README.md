@@ -146,7 +146,7 @@ npm start
 ## ✦ Konfigurasi `.env`
 
 Buat file `.env` di root folder dengan isi berikut:
-
+```.env
 ---
 SESSION=local
 USE_LOCAL_AUTH=true
@@ -156,7 +156,7 @@ HANDLERS=.
 # opsional untuk pairing code:
 # PAIRING_NUMBER=628xxxxxxxxxx
 ---
-
+```
 ## ✦ Perintah PM2
 
 ```bash
