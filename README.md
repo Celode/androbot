@@ -43,6 +43,12 @@
 
 ---
 
+## ✦ Work On
+### - Android (Termux)
+### - Server/VPS/Cloud
+### - Localhost/Terminal
+
+---
 ## ✦ Instalasi di Android (Termux)
 
 > Cara paling mudah menjalankan Androbot — langsung dari HP kamu.
