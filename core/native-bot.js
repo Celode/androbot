@@ -1,14 +1,6 @@
 const path = require("path");
 const fs = require("fs");
 const qrcode = require("qrcode-terminal");
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  makeCacheableSignalKeyStore,
-  fetchLatestBaileysVersion,
-  Browsers,
-  DisconnectReason,
-} = require("baileys");
 const { Boom } = require("@hapi/boom");
 const { logger } = require("../config");
 const { handler, groupUpdate, startEvent } = require("./handler");
@@ -23,6 +15,18 @@ class NativeWhatsAppBot {
 
   async initialize() {
     fs.mkdirSync(this._authDir, { recursive: true });
+
+    // ✅ PERBAIKAN: Gunakan dynamic import di dalam fungsi async
+    // Catatan: Pastikan nama package sesuai dengan yang ada di package.json
+    // ("baileys" atau "@whiskeysockets/baileys")
+    const {
+      default: makeWASocket,
+      useMultiFileAuthState,
+      makeCacheableSignalKeyStore,
+      fetchLatestBaileysVersion,
+      Browsers,
+      DisconnectReason,
+    } = await import("baileys"); 
 
     const { state, saveCreds } = await useMultiFileAuthState(this._authDir);
     const { version } = await fetchLatestBaileysVersion();
@@ -111,6 +115,7 @@ class NativeWhatsAppBot {
 
       if (connection === "close") {
         const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+        // Referensi DisconnectReason diambil dari import di atas
         const isLoggedOut = statusCode === DisconnectReason.loggedOut;
         if (isLoggedOut) {
           console.error(
