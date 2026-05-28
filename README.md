@@ -58,7 +58,8 @@
 ### Langkah 1 — Jalankan Script Installer
 
 ```bash
-bash deploy-androbot.sh
+chmod +x deploy-androbot.sh
+./deploy-androbot.sh
 ```
 
 Script **`deploy-androbot.sh`** akan otomatis mengurus semuanya:
