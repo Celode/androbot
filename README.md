@@ -29,7 +29,7 @@ chmod +x deploy-androbot.sh
 Atau jika kamu sudah punya file-nya secara lokal:
 
 ```bash
-bash deploy-androbot.sh
+./deploy-androbot.sh
 ```
 
 Script ini akan otomatis:
