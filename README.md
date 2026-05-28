@@ -147,25 +147,8 @@ npm start
 
 Buat file `.env` di root folder dengan isi berikut:
 
-```env
-# ── Sesi ──────────────────────────────
-SESSION=local
-USE_LOCAL_AUTH=true
 
-# ── Bot ───────────────────────────────
-BOT_NAME=AndroBot
-HANDLERS=.,!
-SUDO=628xxxxxxxxxx        # Nomor HP kamu, tanpa tanda +
-
-# ── Database (wajib untuk cloud/VPS) ──
-DATABASE_URL=             # PostgreSQL URL, kosongkan jika pakai Termux
-
-# ── Lokalisasi ────────────────────────
-LANGUAGE=en
-TZ=Asia/Jakarta
-```
-
-| Variable | Keterangan |
+| Variable |
 |---|---|
 | SESSION=local | 
 | USE_LOCAL_AUTH=true | 
